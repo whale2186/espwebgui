@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #121212;
+        color: #e0e0e0;
+        font-family: "Roboto", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+      }
+      .container {
+        width: 100%;
+        max-width: 900px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      header h1 {
+        font-size: 2rem;
+        font-weight: 700;
+      }
+      .card {
+        background: #1e1e1e;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        align-items: center;
+      }
+      .control-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .control-item label {
+        font-weight: 500;
+      }
+      .btn {
+        background: #bb86fc;
+        border: none;
+        border-radius: 8px;
+        color: #121212;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 500;
+        padding: 10px 20px;
+        transition: background 0.3s;
+      }
+      .btn:hover {
+        background: #985eff;
+      }
+      #cameraSection {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+      }
+      #stream {
+        border-radius: 8px;
+        margin-top: 20px;
+        max-width: 100%;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      }
+      .links a {
+        display: block;
+        background: #2c2c2c;
+        padding: 12px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 500;
+        color: #bb86fc;
+        transition: background 0.3s;
+        text-decoration: none;
+      }
+      .links a:hover {
+        background: #333;
+      }
+
+      /* Apps style */
+      #appsSection .app {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        background: #2a2a2a;
+        padding: 12px;
+        border-radius: 8px;
+        transition: background 0.2s;
+      }
+      #appsSection .app:hover {
+        background: #3a3a3a;
+      }
+      #appsSection .app img,
+      #appsSection .app .app-name {
+        cursor: pointer;
+      }
+      #appsSection .app img {
+        width: 48px;
+        height: 48px;
+      }
+      #appsSection .app-name {
+        font-weight: 500;
+        text-align: center;
+      }
+      #appsSection .app-controls {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      #appsSection .app-controls input {
+        transform: scale(1.2);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Dashboard</h1>
+      </header>
+
+      <!-- Navigation Links -->
+      <div class="card links">
+        <h2 style="margin-bottom: 12px; font-size: 1.25rem">Quick Links</h2>
+        <div class="grid">
+          <a href="/filemanager.html" id="fileManager">📁 File Manager</a>
+          <a href="/logs.html" id="viewLogs">📜 View Logs</a>
+          <a href="/clearlogs" id="clearLogs">🧹 Clear Logs</a>
+          <a href="/restart" id="restartDevice">🔄 Restart Device</a>
+        </div>
+      </div>
+
+      <!-- Apps Section -->
+      <div id="appsSection" class="card">
+        <h2 style="margin-bottom: 12px; font-size: 1.25rem">Apps</h2>
+        <div id="appsGrid" class="grid"></div>
+      </div>
+    </div>
+
+    <script>
+      // System controls
+      const toggleBtn = document.getElementById("toggleBtn");
+      const cameraSec = document.getElementById("cameraSection");
+      const loadBtn = document.getElementById("loadStreamBtn");
+      const streamImg = document.getElementById("stream");
+      const resSel = document.getElementById("resolution");
+      const fpsSlider = document.getElementById("fps");
+      const fpsValue = document.getElementById("fpsValue");
+      const autoChargeChk = document.getElementById("autoChargeChk");
+      const autoRestartChk = document.getElementById("autoRestartChk");
+      const cameraChk = document.getElementById("cameraChk");
+      const chargeChk = document.getElementById("chargeChk");
+      const refreshBtn = document.getElementById("refreshStatus");
+
+      //variables
+      let runningWx = false;
+
+      // Quick links alerts
+      ["clearLogs", "restartDevice"].forEach((id) => {
+        const el = document.getElementById(id);
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          fetch(el.href)
+            .then((r) => r.text())
+            .then(() => alert(`✅ ${el.textContent.trim()} triggered`))
+            .catch(() =>
+              alert(`❌ Failed to trigger ${el.textContent.trim()}`)
+            );
+        });
+      });
+
+      // ——— Apps + Auto-Start ———
+      let appsList = [],
+        autoStartList = [];
+
+      function renderApps(apps) {
+        const grid = document.getElementById("appsGrid");
+        grid.innerHTML = "";
+
+        apps.forEach((app) => {
+          const card = document.createElement("div");
+          card.className = "app";
+
+          // icon
+          const img = document.createElement("img");
+          img.src = `/open?path=/apps/data/assets/${app.icon}`;
+          img.addEventListener("click", () => launchApp(app.name, app.file));
+
+          // name
+          const label = document.createElement("div");
+          label.className = "app-name";
+          label.textContent = app.name;
+          label.addEventListener("click", () => launchApp(app.name, app.file));
+
+          // controls
+          // inside your renderApps loop, replacing the old block
+          const controls = document.createElement("div");
+          controls.className = "app-controls";
+
+          // only add the Auto-Start control for .wx apps
+          if (!app.file.endsWith(".wx")) {
+            const chk = document.createElement("input");
+            chk.type = "checkbox";
+            chk.checked = autoStartList.includes(app.file);
+            chk.addEventListener("change", () => toggleAutoStart(app, chk));
+
+            const chkLbl = document.createElement("label");
+            chkLbl.textContent = "Auto-Start";
+
+            controls.append(chk, chkLbl);
+          }
+
+          card.append(img, label, controls);
+          grid.appendChild(card);
+        });
+      }
+
+      function launchApp(name, file) {
+        if (file.endsWith(".wx")) {
+          runWxScript(file)
+            .then(() => console.log(`✅ Ran ${name}`))
+            .catch((err) => {
+              console.error(err);
+              alert(`❌ Failed to run ${name}`);
+            });
+        } else {
+          // your existing ESP‐side launch
+          fetch(`/runscript?script=${encodeURIComponent("/apps/" + file)}`)
+            .then((r) => r.text())
+            .then(() => console.log(`✅ Launched ${name} on ESP`))
+            .catch(() => console.log(`❌ Failed to launch ${name} on ESP`));
+        }
+      }
+
+      async function runWxScript(file) {
+        if (!runningWx) {
+          runningWx = true;
+          try {
+            const resp = await fetch(`/open?path=/apps/${file}`);
+            if (!resp.ok)
+              throw new Error(`Cannot load ${file}: ${resp.status}`);
+            const text = await resp.text();
+
+            // optional: collect metadata
+            const meta = {};
+            const lines = text.split(/\r?\n/);
+            for (let raw of lines) {
+              const line = raw.trim();
+              if (line.startsWith("//")) {
+                const m = line.match(/^\/\/\s*([^:]+)\s*:\s*(.+)$/);
+                if (m) meta[m[1].toLowerCase()] = m[2];
+                continue;
+              }
+              if (!line) continue;
+
+              const m = line.match(/^([a-zA-Z_]\w*)\(([\s\S]*)\)$/);
+              if (!m) {
+                console.warn(`Skipping unrecognized line: ${line}`);
+                continue;
+              }
+
+              let [_, cmd, argstr] = m;
+              argstr = argstr.trim();
+              if (
+                (argstr.startsWith('"') && argstr.endsWith('"')) ||
+                (argstr.startsWith("'") && argstr.endsWith("'"))
+              ) {
+                argstr = argstr.slice(1, -1);
+              }
+
+              switch (cmd) {
+                case "redirect":
+                  window.location.href = argstr;
+                  return;
+
+                case "client_httppget":
+                  try {
+                    const res = await fetch(argstr);
+                    if (res.status !== 200) {
+                      console.log(
+                        `client_httppget failed with status: ${res.status}`
+                      );
+                      return;
+                    }
+                  } catch (e) {
+                    console.error("client_httppget error:", e);
+                    return;
+                  }
+                  break;
+
+                case "consolelog":
+                  const logEl = document.getElementById("log") || console;
+                  logEl.innerText != null
+                    ? (logEl.innerText += argstr + "\n")
+                    : console.log(argstr);
+                  break;
+
+                case "open":
+                  try {
+                    const res = await fetch(argstr);
+                    if (res.status !== 200) {
+                      console.log(
+                        `Failed to open ${argstr}, status: ${res.status}`
+                      );
+                      return;
+                    }
+                    const html = await res.text();
+
+                    document
+                      .querySelectorAll('style, link[rel="stylesheet"]')
+                      .forEach((el) => el.remove());
+
+                    const container =
+                      document.getElementById("app") || document.body;
+                    container.innerHTML = html;
+                    container
+                      .querySelectorAll("[style]")
+                      .forEach((el) => el.removeAttribute("style"));
+
+                    const scripts = container.querySelectorAll("script");
+                    for (const oldScript of scripts) {
+                      const newScript = document.createElement("script");
+                      if (oldScript.src) {
+                        newScript.src = oldScript.src;
+                      } else {
+                        newScript.textContent = oldScript.textContent;
+                      }
+                      oldScript.replaceWith(newScript);
+                    }
+
+                    if (!history.state || !history.state.dynamicOpen) {
+                      history.replaceState(
+                        { dynamicOpen: false, originalPath: location.pathname },
+                        "",
+                        location.pathname
+                      );
+                    }
+
+                    history.pushState({ dynamicOpen: true }, "", argstr);
+                  } catch (err) {
+                    console.error(`Error opening ${argstr}:`, err);
+                  }
+                  break;
+
+                case "script":
+                  fetch(
+                    `/runscript?script=${encodeURIComponent(argstr)}`
+                  ).catch(() => console.log(`Failed to execute script`));
+                  break;
+
+                default:
+                  try {
+                    const res = await fetch(
+                      `/runcommand?command=${encodeURIComponent(line)}`
+                    );
+                    if (res.status !== 200) {
+                      console.log(
+                        `Command failed (${line}) with status: ${res.status}`
+                      );
+                      return;
+                    }
+                  } catch (err) {
+                    console.error("Error sending command to ESP:", line, err);
+                    return;
+                  }
+              }
+            }
+          } finally {
+            runningWx = false;
+          }
+        } else {
+          console.log("One Script is already executing !");
+        }
+      }
+
+      function toggleAutoStart(app, chk) {
+        const url = chk.checked
+          ? `/autostart/add?script=${encodeURIComponent(app.file)}`
+          : `/autostart/remove?script=${encodeURIComponent(app.file)}`;
+        fetch(url)
+          .then((res) => {
+            if (!res.ok) throw new Error();
+            return fetchAutoStart();
+          })
+          .then(() => renderApps(appsList))
+          .catch((err) => {
+            console.error(err);
+            chk.checked = !chk.checked;
+            alert(
+              `❌ Failed to ${
+                chk.checked ? "enable" : "disable"
+              } auto-start for ${app.name}`
+            );
+          });
+      }
+
+      function fetchApps() {
+        fetch("/listapps")
+          .then((r) => r.json())
+          .then((apps) => {
+            appsList = apps;
+            return fetchAutoStart();
+          })
+          .then(() => renderApps(appsList))
+          .catch(console.error);
+      }
+
+      function fetchAutoStart() {
+        return fetch("/getautostart")
+          .then((r) => r.json())
+          .then((list) => {
+            autoStartList = list;
+          });
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        fetchApps();
+      });
+      window.addEventListener("popstate", (event) => {
+        if (!event.state || !event.state.dynamicOpen) {
+          // Back to original state (e.g., "/") → reload the page fully
+          location.reload();
+        }
+      });
+    </script>
+  </body>
+</html>
