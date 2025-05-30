@@ -276,6 +276,7 @@ void loop() {
       else {
         // failed this attempt
         retryCount++;
+        logMsg(("Failed to Reach Server ! Count: " + String(retryCount)).c_str());
         if (retryCount >= MAX_SERVER_RETRIES) {
           // all retries exhausted
           if (gotResponse == false) {
