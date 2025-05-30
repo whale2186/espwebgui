@@ -41,6 +41,12 @@ volatile bool scriptRunning = false;
 volatile bool commandRunning = false;
 
 
+//Check 
+enum CheckState { CHECK_IDLE, CHECK_RETRYING };
+static CheckState   checkState    = CHECK_IDLE;
+static unsigned long nextRetryTime = 0;
+static unsigned long lastCheckLocal = 0;
+
 // Camera (AI-Thinker ESP32-CAM) pins
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
@@ -241,39 +247,66 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
   server.handleClient();
-  if (AutoCharge){
-    if (millis() - lastCheck >= CYCLE_DELAY_MS) {
-      lastCheck = millis();
-      retryCount = 0;
-      gotResponse = false;
-      while (retryCount < MAX_SERVER_RETRIES) {
-        if (isServerUp(serverValue)) { gotResponse = true; break; }
-        retryCount++;
-        delay(RETRY_DELAY_MS);
-      }
-      if (gotResponse) {
+
+  if (AutoCharge) {
+    unsigned long now = millis();
+
+    // 1) Kick off a new check cycle
+    if (checkState == CHECK_IDLE && now - lastCheckLocal >= CYCLE_DELAY_MS) {
+      lastCheckLocal   = now;
+      retryCount       = 0;
+      gotResponse      = false;
+      nextRetryTime    = now;          // immediate first attempt
+      checkState       = CHECK_RETRYING;
+    }
+
+    // 2) If we're in retrying state, do one try whenever the delay has elapsed
+    if (checkState == CHECK_RETRYING && now >= nextRetryTime) {
+      // attempt to contact server
+      if (isServerUp(serverValue)) {
+        gotResponse = true;
+        // apply the result immediately
         if (serverValue == 1) {
           digitalWrite(RELAY_PIN, LOW);
         } else {
           digitalWrite(RELAY_PIN, HIGH);
         }
-      } else {
-        if(AutoRestart){
-          logMsg("Server unreachable   BLE recovery");
-          if(WiFi.status() == WL_CONNECTED){
-          sendRecoverySequence();
-          }else{
-            logMsg("Skipping Recovery Sequence as WiFi is not connected!");
+        checkState = CHECK_IDLE;  // done
+      }
+      else {
+        // failed this attempt
+        retryCount++;
+        if (retryCount >= MAX_SERVER_RETRIES) {
+          // all retries exhausted
+          if (gotResponse == false) {
+            // handle unreachable
+            if (AutoRestart) {
+              logMsg("Server unreachable   BLE recovery");
+              if (WiFi.status() == WL_CONNECTED) {
+                sendRecoverySequence();
+              } else {
+                logMsg("Skipping Recovery Sequence As WiFi is not connected !");
+                logMsg("Restarting ESP...");
+                delay(500);
+                ESP.restart();
+              }
+            } else {
+              logMsg("Recovery Disabled Skipping..");
+            }
           }
-        }else{
-          logMsg("Recovery Disabled Skipping..");
+          checkState = CHECK_IDLE;
+        } else {
+          // schedule next retry
+          nextRetryTime = now + RETRY_DELAY_MS;
         }
       }
     }
-  }else{
-    if(Charge){
+  }
+  else {
+    // your manual Charge/!Charge logic stays exactly as before
+    if (Charge) {
       digitalWrite(RELAY_PIN, LOW);
-    }else{
+    } else {
       digitalWrite(RELAY_PIN, HIGH);
     }
   }
