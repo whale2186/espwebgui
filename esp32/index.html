@@ -318,7 +318,13 @@
 
                 case "open":
                   try {
-                    const res = await fetch(argstr);
+                    let res;
+
+                    if (argstr.startsWith("/")) {
+                      res = await fetch(`/open?path=${argstr}`);
+                    } else {
+                      res = await fetch(argstr);
+                    }
                     if (res.status !== 200) {
                       console.log(
                         `Failed to open ${argstr}, status: ${res.status}`
@@ -356,7 +362,6 @@
                         location.pathname
                       );
                     }
-
                     history.pushState({ dynamicOpen: true }, "", argstr);
                   } catch (err) {
                     console.error(`Error opening ${argstr}:`, err);
