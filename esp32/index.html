@@ -318,13 +318,7 @@
 
                 case "open":
                   try {
-                    let res;
-
-                    if (argstr.startsWith("/")) {
-                      res = await fetch(`/open?path=${argstr}`);
-                    } else {
-                      res = await fetch(argstr);
-                    }
+                    const res = await fetch(argstr);
                     if (res.status !== 200) {
                       console.log(
                         `Failed to open ${argstr}, status: ${res.status}`
